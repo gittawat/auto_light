@@ -31,7 +31,7 @@ struct HCSR04 {
 	GPIO_TypeDef *TRIG_PORT;
 	uint16_t TRIG_PIN;
 	TIM_HandleTypeDef *htim;
-	uint32_t channel;
+	uint32_t TIM_Channel;
 	uint32_t IC_Val1;
 	uint32_t IC_Val2;
 	uint8_t Is_First_Captured;  // is the first value captured ?
@@ -78,7 +78,7 @@ void HC_SR04_init(){
 	sensor1.TRIG_PORT = HC_SR04_1_trig_GPIO_Port;
 	sensor1.TRIG_PIN = HC_SR04_1_trig_Pin;
 	sensor1.htim = &htim3;
-	sensor1.channel = TIM_CHANNEL_2;
+	sensor1.TIM_Channel = TIM_CHANNEL_2;
 	sensor1.IC_Val1 = 0;
 	sensor1.IC_Val2 = 0;
 	sensor1.Is_First_Captured = 0;
@@ -87,7 +87,7 @@ void HC_SR04_init(){
 	sensor2.TRIG_PORT = HC_SR04_2_trig_GPIO_Port;
 	sensor2.TRIG_PIN = HC_SR04_2_trig_Pin;
 	sensor2.htim = &htim1;
-	sensor1.channel = TIM_CHANNEL_1;
+	sensor2.TIM_Channel = TIM_CHANNEL_1;
 	sensor2.IC_Val1 = 0;
 	sensor2.IC_Val2 = 0;
 	sensor2.Is_First_Captured = 0;
@@ -105,7 +105,6 @@ void delay(TIM_HandleTypeDef *htim, uint16_t time) {
 	while (__HAL_TIM_GET_COUNTER(htim) < time)
 		;
 }
-
 //#define TRIG_PIN GPIO_PIN_9
 //#define TRIG_PORT GPIOA
 
@@ -113,86 +112,34 @@ void delay(TIM_HandleTypeDef *htim, uint16_t time) {
 
 void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 	HCSR04 *sensor;
-	switch(htim->Instance){
-	    case TIM3:
+	switch((int)(htim->Instance)){
+	    case (int)TIM3:
 	    	sensor = &sensor1;
 	      break;
 
-	    case TIM1:
+	    case (int)TIM1:
 	    	sensor = &sensor2;
 	      break;
 
 	    default:
+	    	break;
 	}
-
-	if (htim->Instance == TIM1) {
-		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1) // if the interrupt source is channel1
-				{
-			if (sensor1.Is_First_Captured == 0) // if the first value is not captured
-					{
-				sensor1.IC_Val1 = HAL_TIM_ReadCapturedValue(htim,
-						TIM_CHANNEL_1); // read the first value
-				sensor1.Is_First_Captured = 1; // set the first captured as true
-				// Now change the polarity to falling edge
-				__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1,
-						TIM_INPUTCHANNELPOLARITY_FALLING);
-			}
-
-			else  // if the first is already captured
-			{
-				sensor1.IC_Val2 = HAL_TIM_ReadCapturedValue(htim,
-						TIM_CHANNEL_1); // read second value
-				__HAL_TIM_SET_COUNTER(htim, 0);  // reset the counter
-
-				sensor1.Distance = ((sensor1.IC_Val2 - sensor1.IC_Val1)
-						* (sensor1.IC_Val2 > sensor1.IC_Val1)
-						+ ((0xffff - sensor1.IC_Val1) + sensor1.IC_Val2)
-								* (sensor1.IC_Val1 > sensor1.IC_Val2)) * .034
-						/ 2;
-				//Distance = Difference * .034/2;
-				sensor1.Is_First_Captured = 0; // set it back to false
-
-				// set polarity to rising edge
-				__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_1,
-						TIM_INPUTCHANNELPOLARITY_RISING);
-				__HAL_TIM_DISABLE_IT(&htim1, TIM_IT_CC1);
-			}
-		}
-	} else {
-		if (htim->Channel == HAL_TIM_ACTIVE_CHANNEL_2) // if the interrupt source is channel1
-				{
-			if (sensor2.Is_First_Captured == 0) // if the first value is not captured
-					{
-				sensor2.IC_Val1 = HAL_TIM_ReadCapturedValue(htim,
-						TIM_CHANNEL_2); // read the first value
-				sensor2.Is_First_Captured = 1; // set the first captured as true
-
-				// Now change the polarity to falling edge
-				__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_2,
-						TIM_INPUTCHANNELPOLARITY_FALLING);
-			}
-
-			else  // if the first is already captured
-			{
-				sensor2.IC_Val2 = HAL_TIM_ReadCapturedValue(htim,
-						TIM_CHANNEL_2); // read second value
-				__HAL_TIM_SET_COUNTER(htim, 0);  // reset the counter
-
-				sensor2.Distance = ((sensor2.IC_Val2 - sensor2.IC_Val1)
-						* (sensor2.IC_Val2 > sensor2.IC_Val1)
-						+ ((0xffff - sensor2.IC_Val1) + sensor2.IC_Val2)
-								* (sensor2.IC_Val1 > sensor2.IC_Val2)) * .034
-						/ 2;
-
-				//Distance = Difference * .034/2;
-				sensor2.Is_First_Captured = 0; // set it back to false
-
-				// set polarity to rising edge
-				__HAL_TIM_SET_CAPTUREPOLARITY(htim, TIM_CHANNEL_2,
-						TIM_INPUTCHANNELPOLARITY_RISING);
-				__HAL_TIM_DISABLE_IT(&htim3, TIM_IT_CC1);
-			}
-		}
+	if (sensor->Is_First_Captured == 0){ // if the first value is not captured
+			sensor->IC_Val1 = HAL_TIM_ReadCapturedValue(htim,sensor->TIM_Channel); // read the first value
+			sensor->Is_First_Captured = 1; // set the first captured as true
+			// Now change the polarity to falling edge
+			__HAL_TIM_SET_CAPTUREPOLARITY(htim,sensor->TIM_Channel,TIM_INPUTCHANNELPOLARITY_FALLING);
+	}
+	else{  // if the first is already captured
+		sensor->IC_Val2 = HAL_TIM_ReadCapturedValue(htim,sensor->TIM_Channel); // read second value
+		__HAL_TIM_SET_COUNTER(htim, 0);  // reset the counter
+		sensor->Distance = ((sensor->IC_Val2 - sensor->IC_Val1)* (sensor->IC_Val2 > sensor->IC_Val1)
+							+ ((0xffff - sensor->IC_Val1) + sensor->IC_Val2)* (sensor->IC_Val1 > sensor->IC_Val2))
+							* .034/ 2;
+		sensor->Is_First_Captured = 0; // set it back to false
+		// set polarity to rising edge
+		__HAL_TIM_SET_CAPTUREPOLARITY(htim,sensor->TIM_Channel,TIM_INPUTCHANNELPOLARITY_RISING);
+		__HAL_TIM_DISABLE_IT(sensor->htim, TIM_IT_CC1);
 	}
 }
 void HCSR04_Read(HCSR04 *sensor) {
@@ -200,10 +147,9 @@ void HCSR04_Read(HCSR04 *sensor) {
 	delay(sensor->htim, 10);  // wait for 10 us
 	HAL_GPIO_WritePin(sensor->TRIG_PORT, sensor->TRIG_PIN, GPIO_PIN_RESET); // pull the TRIG pin low
 
-	__HAL_TIM_ENABLE_IT(&htim1, TIM_IT_CC1);
-	__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
+	__HAL_TIM_ENABLE_IT(sensor->htim, TIM_IT_CC1);
+	//__HAL_TIM_ENABLE_IT(&htim3, TIM_IT_CC1);
 }
-
 /* USER CODE END 0 */
 
 /**
@@ -239,30 +185,27 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
-
-
-
-	uint8_t data[32];
-	uint8_t count[8];
-	HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
-	HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_2);
-	uint8_t reset_counter= 14;
-	int32_t human_counter = 0;
-	uint8_t sensor1_trigger_first = 0;
-	uint8_t sensor2_trigger_first = 0;
+  HC_SR04_init();
+  uint8_t data[32];
+  uint8_t count[8];
+  HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
+  HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_2);
+  uint8_t reset_counter= 14;
+  int32_t human_counter = 0;
+  uint8_t sensor1_trigger_first = 0;
+  uint8_t sensor2_trigger_first = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
-		HAL_Delay(100);
+		HAL_Delay(20);
 		HCSR04_Read(&sensor1);
 		HAL_Delay(20);
 		HCSR04_Read(&sensor2);
-		HAL_Delay(20);
+		HAL_Delay(80);
 		if(sensor1_trigger_first && !sensor2_trigger_first){
 			reset_counter--;
 			if(sensor1.Distance > 50 && sensor2.Distance < 30){
@@ -285,17 +228,15 @@ int main(void)
 			if(sensor2.Distance > 50 && sensor1.Distance < 30){
 				human_counter--;
 				notify(GPIO_PIN_RESET);
-				HAL_UART_Transmit(&huart6, count,
-						sprintf(count, "%d\n",2),
-						100);
+				HAL_UART_Transmit(&huart6, count,sprintf(count, "%d\n",2),100);
 				sensor1_trigger_first = 1;
 				sensor2_trigger_first = 1;
 				}
-			if(reset_counter <= 0){
-				reset_counter = 6;
-				sensor1_trigger_first = 1;
-				sensor2_trigger_first = 1;
-			}
+				if(reset_counter <= 0){
+					reset_counter = 14;
+					sensor1_trigger_first = 1;
+					sensor2_trigger_first = 1;
+				}
 			}
 		else if(!sensor1_trigger_first && !sensor2_trigger_first){
 			if(sensor1.Distance < 30 && sensor2.Distance > 50){
@@ -312,13 +253,10 @@ int main(void)
 				sensor2_trigger_first = 0;
 			}
 		}
-
-
 		HAL_UART_Transmit(&huart2, data,
 				sprintf(data, "%d %d state: %d %d %d\n", sensor1.Distance, sensor2.Distance, sensor1_trigger_first,sensor2_trigger_first,human_counter),
 				100);
 	}
-
   /* USER CODE END 3 */
 }
 
