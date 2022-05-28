@@ -116,11 +116,9 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
 	    case (int)TIM3:
 	    	sensor = &sensor1;
 	      break;
-
 	    case (int)TIM1:
 	    	sensor = &sensor2;
 	      break;
-
 	    default:
 	    	break;
 	}
@@ -187,77 +185,61 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HC_SR04_init();
   uint8_t data[32];
-  uint8_t count[8];
   HAL_TIM_IC_Start_IT(&htim1, TIM_CHANNEL_1);
   HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_2);
-  uint8_t reset_counter= 14;
   int32_t human_counter = 0;
-  uint8_t sensor1_trigger_first = 0;
-  uint8_t sensor2_trigger_first = 0;
+  uint8_t sensor1_current_state = 0;
+  uint8_t sensor1_previous_state = 0;
+  uint8_t sensor2_current_state = 0;
+  uint8_t sensor2_previous_state = 0;
+  int8_t dummy_value = 0;
+  uint8_t increment = 0;
+  uint8_t decrement = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	while (1) {
+  while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		HAL_Delay(20);
-		HCSR04_Read(&sensor1);
-		HAL_Delay(20);
+	    HAL_Delay(10);
 		HCSR04_Read(&sensor2);
-		HAL_Delay(80);
-		if(sensor1_trigger_first && !sensor2_trigger_first){
-			reset_counter--;
-			if(sensor1.Distance > 50 && sensor2.Distance < 30){
-				human_counter++;
-				notify(GPIO_PIN_SET);
-				HAL_UART_Transmit(&huart6, count,
-						sprintf(count, "%d\n",1),
-						100);
-				sensor1_trigger_first = 1;
-				sensor2_trigger_first = 1;
-			}
-			if(reset_counter <= 0){
-				reset_counter = 14;
-				sensor1_trigger_first = 1;
-				sensor2_trigger_first = 1;
-			}
+		HAL_Delay(10);
+		HCSR04_Read(&sensor1);
+		sensor2_current_state = (sensor2.Distance < 30);
+		sensor1_current_state = (sensor1.Distance < 30);
+		increment =
+				(!sensor1_previous_state && !sensor2_previous_state && !sensor1_current_state && sensor2_current_state)
+				||
+				(!sensor1_previous_state && sensor2_previous_state && sensor1_current_state && !sensor2_current_state)
+				||
+				(sensor1_previous_state && !sensor2_previous_state && !sensor1_current_state && !sensor2_current_state );
+		decrement =
+				(!sensor1_previous_state && !sensor2_previous_state && sensor1_current_state && !sensor2_current_state)
+				||
+				(sensor1_previous_state && !sensor2_previous_state && !sensor1_current_state && sensor2_current_state)
+				||
+				(!sensor1_previous_state && sensor2_previous_state && !sensor1_current_state && !sensor2_current_state );
+
+		dummy_value = dummy_value + increment - decrement;
+		if(dummy_value == 3){
+			dummy_value = 0;
+			human_counter++;
+			HAL_UART_Transmit(&huart2, data,sprintf(data,"%d %d state: %d %d %d\n", sensor1.Distance, sensor2.Distance, sensor1_current_state,sensor2_current_state,human_counter),100);
 		}
-		else if(sensor2_trigger_first && !sensor1_trigger_first){
-			reset_counter--;
-			if(sensor2.Distance > 50 && sensor1.Distance < 30){
-				human_counter--;
-				notify(GPIO_PIN_RESET);
-				HAL_UART_Transmit(&huart6, count,sprintf(count, "%d\n",2),100);
-				sensor1_trigger_first = 1;
-				sensor2_trigger_first = 1;
-				}
-				if(reset_counter <= 0){
-					reset_counter = 14;
-					sensor1_trigger_first = 1;
-					sensor2_trigger_first = 1;
-				}
-			}
-		else if(!sensor1_trigger_first && !sensor2_trigger_first){
-			if(sensor1.Distance < 30 && sensor2.Distance > 50){
-			sensor1_trigger_first = 1;
-			sensor2_trigger_first = 0;
-			}
-			if(sensor2.Distance < 30 && sensor1.Distance > 50){
-			sensor1_trigger_first = 0;
-			sensor2_trigger_first = 1;
-			}
-		}else{
-			if(sensor2.Distance > 50 && sensor1.Distance > 50){
-				sensor1_trigger_first = 0;
-				sensor2_trigger_first = 0;
-			}
+		if(dummy_value == -3){
+			dummy_value = 0;
+			human_counter--;
+			HAL_UART_Transmit(&huart2, data,sprintf(data,"%d %d state: %d %d %d\n", sensor1.Distance, sensor2.Distance, sensor1_current_state,sensor2_current_state,human_counter),100);
 		}
-		HAL_UART_Transmit(&huart2, data,
-				sprintf(data, "%d %d state: %d %d %d\n", sensor1.Distance, sensor2.Distance, sensor1_trigger_first,sensor2_trigger_first,human_counter),
-				100);
-	}
+
+		if((sensor1_previous_state != sensor1_current_state || sensor2_previous_state != sensor2_current_state) && !(sensor2_current_state && sensor1_current_state)){
+		sensor1_previous_state = sensor1_current_state;
+		sensor2_previous_state = sensor2_current_state;
+		}
+		//HAL_UART_Transmit(&huart2, data,sprintf(data,"%d %d state: %d %d %d\n", sensor1.Distance, sensor2.Distance, sensor1_current_state,sensor2_current_state,human_counter),100);
+  }
   /* USER CODE END 3 */
 }
 
